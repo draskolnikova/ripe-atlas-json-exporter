@@ -1,0 +1,22 @@
+Changes with 1.3.0 						xx MON 2018
+   *) New: Address family detection (ipv4/ipv6)
+   *) New: Detect by measurement ID
+
+Changes with 1.2.2						13 Feb 2018
+   *) Fix: Using try: .. except: in metrics
+
+Changes with 1.2.1 						09 Feb 2018
+   *) New: SSL measurements
+   *) New: Configurable options (listening port, listening ip address, measurement types and endpoint URL)
+
+Changes with 1.1						07 Feb 2018
+   *) Remove: Packet loss detection
+   *) Improvement: from 30s to 1s response
+   *) New: `src_address` information
+   *) New: `check_type` information
+   *) New: Latency min, max, avg
+
+Changes with 1.0					 	06 Feb 2018
+   *) New: Last ping detection
+   *) New: Packet loss detection
+
