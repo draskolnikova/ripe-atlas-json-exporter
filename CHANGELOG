@@ -1,4 +1,7 @@
-Changes with 1.3.0 						xx MON 2018
+Changes with 1.4.0                                              06 Jul 2018
+   *) New: DNS Measurements
+
+Changes with 1.3.0 						14 Apr 2018
    *) New: Address family detection (ipv4/ipv6)
    *) New: Detect by measurement ID
 
