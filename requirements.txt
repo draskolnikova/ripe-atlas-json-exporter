@@ -1,4 +1,4 @@
-prometheus_client==0.7.2
+prometheus_client==0.2.0
 version>=0.1.1
 ripe.atlas.cousteau
 ripe.atlas.sagan

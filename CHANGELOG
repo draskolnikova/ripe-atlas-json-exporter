@@ -1,3 +1,9 @@
+Changes with 1.4.1						11 Jul 2018
+   *) New: Traceroute hopcount measurements
+   *) New: Measurement ID argument on command line
+   *) Remove: Measurement type & endpoint arguments on command line
+   *) New: Autodiscovery endpoint URL & measurement type by ID
+
 Changes with 1.4.0                                              06 Jul 2018
    *) New: DNS Measurements
 
