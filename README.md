@@ -36,17 +36,13 @@ Fetch from RIPE Atlas endpoint, for example we fetch [latest measurement](https:
 
 |:Property:                 |:Description:|
 |---------------------------|----------------------------------------|
-|`-m`, `--measurements` *(string, required: **yes**)* | `ping` - ping measurements             |
-|                           | `traceroute` - traceroute measurements |
-|                           | `dns` - dns measurement                |
-|                           | `ssl` - ssl measurement                |
 |`-M`, `--metrics` *(string, required: **yes**)* | your defined metrics name in prometheus | 
 |`-p` *(integer, required: **no**)* | allow the apps listen to port  |
 |                           | `ping` (default: tcp/7979)             |
-|                           | `traceroute` (default: tcp/7980) *experimental*       |
-|                           | `dns` (default: tcp/7981)              |
-|                           | `ssl` (default: tcp/7982)              |
-|`-e`, `--endpoint` *(string, required: **yes**)* | uri from atlas restful api     |
+|                           | `traceroute` (default: tcp/7981)       |
+|                           | `dns` (default: tcp/7980)              |
+|                           | `ssl` (default: tcp/7983)              |
+|`-id`, `--msmid` *(string, required: **yes**)* | measurement ID from atlas restful api     |
 |`--ipaddr` *(ip, required: **no**)*| allow the apps bind to ip (default: 127.0.0.1) |
 |`-v`                       | print version and exit                 |
 |`-h`                       | print help and exit                    |
@@ -133,7 +129,5 @@ Fetch from RIPE Atlas endpoint, for example we fetch [latest measurement](https:
 ```
 
 ## TO DO
-* Traceroute measurements
-* Auto discovery by measurements ID
 * Run over IPv6
 * Feel free to fork and send PR :-)

@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
-## Python JSON Exporter for Prometheus v1.4.0
+## Python JSON Exporter for Prometheus v1.4.1
 ##
 ## (C) 2018 Dewangga Alam <dewangga.alam@bukalapak.com>
 ##
 ## PoC for IDNOG05, use case: BukaLapak System & Network Environment 
-
+## 
 
 from prometheus_client import start_http_server, Metric, REGISTRY
 from ripe.atlas.cousteau import Probe, Measurement
@@ -24,15 +24,12 @@ import base64
 import dns.message
 import re
 
-__version_info__ = ('v1','4','0')
+__version_info__ = ('v1','4','1')
 __version__ = '.'.join(__version_info__)
 
+# Arguments to be used in the command line
 def get_args():
   parser = argparse.ArgumentParser(description='RIPE Atlas JSON Parser for Prometheus\nCreated with love and without warranty :-)', formatter_class=RawTextHelpFormatter)
-  parser.add_argument('-m','--measurement', 
-  help='Select available measurements (required)\n' 
-             '"ping", "traceroute", "dns", "ssl"', 
-  required=True)
   parser.add_argument('-p','--port', 
   help='Specify listen port\n'
        'ping \t\t(default: tcp/7979)\n'
@@ -45,20 +42,39 @@ def get_args():
   parser.add_argument('--ipaddr', 
   help='Specify listen ip address (default: 127.0.0.1)', 
   default='127.0.0.1' )
-  parser.add_argument('-e','--endpoint', 
-  help='Specify measurements URI from RIPE Atlas Endpoint (required)', 
+  parser.add_argument('-id','--msmid', 
+  help='Specify measurements ID from RIPE Atlas Endpoint (required)', 
   required=True)
   parser.add_argument('-v', '--version', help='Print apps version', action='version', version='%(prog)s ' + __version__)
   args = parser.parse_args()
 
-  msm = args.measurement
   port = args.port
-  endpoint = args.endpoint
+  msmid = args.msmid
   ipaddr = args.ipaddr
   metrics = args.metrics
   
-  return msm, port, endpoint, ipaddr, metrics
+  return port, msmid, ipaddr, metrics
 
+# Auto discovery of measurement type from ID  
+def get_msm():
+  port, msmid, ipaddr, metrics = get_args()
+
+  uri1 = "https://atlas.ripe.net/api/v2/measurements/"
+  uri2 = "/latest?format=json"	
+  response = json.loads(requests.get(uri1+msmid+uri2.format(msmid)).content.decode('UTF-8'))
+  for item in response:
+    msm_name = item.get('msm_name')
+  if (msm_name == 'Ping'):
+    msm = "ping"
+  elif (msm_name == 'Traceroute'):
+    msm = "traceroute"
+  elif (msm_name == 'Tdig'):
+    msm = "dns"
+  elif (msm_name == 'SSLCert'):
+    msm = "ssl"
+  return msm
+
+# Making dictionary from JSON value array
 class DictQuery(dict):
     def get(self, path, default = None):
         keys = path.split("/")
@@ -81,15 +97,28 @@ class DictQuery(dict):
 # We cache a response
 requests_cache.install_cache('ripe_query_cache', backend='sqlite', expire_after=60)
 
+# JSON collector
 class JsonCollector(object):
-  msm, port, endpoint, ipaddr, metrics = get_args()
-  def __init__(self, endpoint):
-    self._endpoint = endpoint
-  def collect(self):
+  port, msmid, ipaddr, metrics = get_args()
+  msm = get_msm()
 
-    response = json.loads(requests.get('https://atlas.ripe.net/api/v2/measurements/{}/latest?format=json'.format(endpoint)).content.decode('UTF-8'))  
-    chk_stats = json.loads(requests.get('https://atlas.ripe.net/api/v2/measurements/{}/status-check?format=json'.format(endpoint)).content.decode('UTF-8'))
-    prb_stats = json.loads(requests.get('https://atlas.ripe.net/api/v2/probes/{}?format=json'.format(endpoint)).content.decode('UTF-8'))
+  def __init__(self, msmid):
+    self._msmid = msmid
+
+  def collect(self):
+    
+    uri1 = "https://atlas.ripe.net/api/v2/measurements/"
+    uri2 = "/latest?format=json"
+    uri3 = "/status-check?format=json"
+    uri4 = "?format=json"
+    r = requests.get(uri1+msmid+uri2)	
+    response = json.loads(requests.get(uri1+msmid+uri2.format(msmid)).content.decode('UTF-8'))
+    chk_stats = json.loads(requests.get(uri1+msmid+uri3.format(msmid)).content.decode('UTF-8'))
+    prb_stats = json.loads(requests.get(uri1+msmid+uri4.format(msmid)).content.decode('UTF-8'))
+
+    # return error if endpoint is unreachable
+    if r.status_code == 404:
+	sys.exit("Endpoint unreachable: Error 404 ")
 
     # DNS msm
     if (msm == 'dns'):
@@ -102,10 +131,12 @@ class JsonCollector(object):
         dns_port = DictQuery(item).get('resultset/dst_port')
 
         dns_response_enc = DictQuery(item).get('resultset/result/abuf')
-        print dns_response_enc
+        print (dns_response_enc)
         dns_response_dec = str(dns.message.from_wire(base64.b64decode(dns_response_enc[0])))
         dns_results = re.findall(r"[0-9]+(?:\.[0-9]+){1,3}",dns_response_dec)
         dns_domain = re.findall(r"\b(?:[a-z0-9]+(?:-[a-z0-9]+)*\.)+[a-z]{2,}\b",dns_response_dec,re.M)
+
+	# adding metric to Prometheus
         try:
           metric = Metric(metrics, 'DNS Measurement', 'summary')
           metric.add_sample(metrics, value=float(dns_rt[0]),
@@ -120,9 +151,8 @@ class JsonCollector(object):
         except None:
           continue
     
-    # HTTPS msm
+    # SSL msm
     elif (msm == 'ssl'):
-      # SSL msm
       for item in response:
         af = item.get('af')
         probes = item.get('prb_id')
@@ -145,24 +175,28 @@ class JsonCollector(object):
         except:
           continue
 
-    # Traceroute msm
+    # Traceroute hopcount msm
     elif (msm == 'traceroute'):
       for item in response:
         probes = item.get('prb_id')
         src_addr = item.get('from')
-        trace = DictQuery(item).get("result/hop")
-        trace_inms = DictQuery(item).get('result/result')
-        for result in trace_inms:
-      #print (result.get('rtt')[-1])
-      # print result[2] 
-        #print "Trace msm from {} id {} are {} hops ({}) ms".format(src_addr, probes, trace[-1], )
-          metric = Metric(metrics, 'Probes Traceroute', 'summary')
-          metric.add_sample(metrics, value=int(last_latency[-1]), 
+        af = item.get('af')
+        hops = DictQuery(item).get("result/hop")
+	check_type = item.get('type')
+        prb_id = Probe(id=probes)
+
+        try:
+          metric = Metric(metrics, 'Probes Traceroute Hopcount', 'summary')
+          metric.add_sample(metrics, value=int(hops[-1]), 
             labels={'prb_id': repr(probes), 
                     'src_addr': src_addr, 
+                    'af': repr(af),
                     'type': check_type 
                    })
           yield metric 
+          pass
+        except:
+          continue
 
     # Ping msm
     elif (msm == 'ping'):
@@ -195,20 +229,28 @@ class JsonCollector(object):
         sys.exit("No measurements type defined")
 
 if  __name__ == '__main__':
-    msm, port, endpoint, ipaddr, metrics = get_args()
-
+    port, msmid, ipaddr, metrics = get_args()
+    msm = get_msm()
+    
     # Listen on specified port
     if port:
         start_http_server(int(port), ipaddr)
+        print "Started prometheus server on " + ipaddr + ":" + port
     elif (msm == 'ping'):
         start_http_server(int(7979), ipaddr)
+        print "Started prometheus server on " + ipaddr + ":7979" 
     elif (msm == 'dns'):
         start_http_server(int(7980), ipaddr)
+        print "Started prometheus server on " + ipaddr + ":7980"
     elif (msm == 'ssl'):
         start_http_server(int(7983), ipaddr)
+        print "Started prometheus server on " + ipaddr + ":7983"
+    elif (msm == 'traceroute'):
+   	start_http_server(int(7981), ipaddr)
+        print "Started prometheus server on " + ipaddr + ":7981" 
     else:
-       sys.exit('Unknown argument, it\'s a bug.')
+      sys.exit('Unknown argument, it\'s a bug.')
 
     # Endpoint URL from RIPE Atlas
-    REGISTRY.register(JsonCollector(endpoint))
+    REGISTRY.register(JsonCollector(msmid))
     while True: time.sleep(1)
